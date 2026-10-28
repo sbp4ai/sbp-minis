@@ -1,0 +1,53 @@
+<view class="bar">
+  <view class="dot {{state}}"></view>
+  <text class="srv">{{(cfg && (cfg.name || cfg.url)) || '未配置服务器'}}</text>
+  <text class="tip">{{tip}}</text>
+  <text class="act" bindtap="reload">⟳</text>
+</view>
+
+<view class="empty" wx:if="{{!cfg}}">
+  <view class="big">⚙</view>
+  <view>先到「服务器」页填好 IP、端口和认证信息</view>
+  <navigator url="/pages/settings/settings" class="btn" style="margin-top:30rpx">去配置</navigator>
+</view>
+
+<block wx:else>
+  <view class="empty" wx:if="{{err}}">
+    <view class="big">⚡</view>
+    <view>{{err}}</view>
+    <view class="btn" style="margin-top:30rpx" bindtap="reload">重试</view>
+  </view>
+
+  <view class="empty" wx:elif="{{!groups.length && !loading}}">
+    <view class="big">💤</view>
+    <view>服务器在线，但没有会话</view>
+    <view class="muted">在电脑上开一个 tmux 会话并启动 agent</view>
+  </view>
+
+  <view class="glist" wx:else>
+    <view class="group" wx:for="{{groups}}" wx:key="key">
+      <view class="ghead" bindtap="toggle" data-i="{{index}}">
+        <text class="caret">{{item.open ? '▾' : '▸'}}</text>
+        <text class="gname">{{item.name}}</text>
+        <text class="dot live" wx:if="{{item.live}}"></text>
+        <text class="muted">{{item.count}}</text>
+        <text class="muted mono cwd">{{item.cwd}}</text>
+      </view>
+      <view class="items" wx:if="{{item.open}}">
+        <view class="item {{it.active ? '' : 'idle'}}" wx:for="{{item.items}}" wx:for-item="it" wx:key="sid"
+              bindtap="open" data-sid="{{it.sid}}">
+          <view class="ihead">
+            <text class="sid mono">{{it.short}}</text>
+            <text class="dot live" wx:if="{{it.active}}"></text>
+            <text class="badge" wx:if="{{it.kind === 'term'}}">{{it.agent}}</text>
+            <text class="muted" wx:elif="{{!it.active}}">未激活</text>
+            <text class="muted" wx:else>{{it.count}} 条</text>
+            <text class="muted">{{it.ago}}</text>
+          </view>
+          <view class="sub" wx:if="{{it.subtitle}}">{{it.subtitle}}</view>
+        </view>
+        <view class="muted none" wx:if="{{!item.items.length}}">这个 tmux 会话里没有 agent 会话</view>
+      </view>
+    </view>
+  </view>
+</block>

@@ -1,0 +1,123 @@
+<view class="page">
+  <view class="card" wx:if="{{editing}}">
+    <view class="row">
+      <text class="label">名称</text>
+      <input value="{{form.name}}" data-k="name" bindinput="onInput" placeholder="家里的 Mac" placeholder-class="ph" />
+    </view>
+    <view class="row">
+      <text class="label">服务器地址</text>
+      <input value="{{form.url}}" data-k="url" bindinput="onInput"
+            placeholder="https://1.2.3.4:8787" placeholder-class="ph" />
+    </view>
+    <view class="row">
+      <text class="label">传输方式</text>
+      <picker mode="selector" range="{{transNames}}" range-key="t" value="{{form.transport}}" bindchange="onTrans">
+        <view>{{transNames[form.transport].t}} ›</view>
+      </picker>
+    </view>
+    <view class="row" wx:if="{{form.transport === 0}}">
+      <text class="label">轮询间隔</text>
+      <input value="{{form.pollInterval}}" data-k="pollInterval" bindinput="onInput" type="number"
+            placeholder="5" placeholder-class="ph" />
+      <text class="unit">秒</text>
+    </view>
+    <view class="row" wx:if="{{parsed}}">
+      <text class="muted mono" style="flex:1">→ {{parsed}}</text>
+    </view>
+    <view class="row">
+      <text class="label">认证方式</text>
+      <picker mode="selector" range="{{authNames}}" range-key="t" value="{{form.auth}}" bindchange="onAuth">
+        <view>{{authNames[form.auth].t}} ›</view>
+      </picker>
+    </view>
+
+    <view class="row" wx:if="{{form.auth === 1}}">
+      <text class="label">Token</text>
+      <input value="{{form.cred}}" data-k="cred" bindinput="onInput"
+            placeholder="服务端签发的 token" placeholder-class="ph" />
+    </view>
+    <view class="row" wx:if="{{form.auth === 2}}">
+      <text class="label">Cookie</text>
+      <input value="{{form.cred}}" data-k="cred" bindinput="onInput"
+            placeholder="panel_session=xxx" placeholder-class="ph" />
+    </view>
+    <view class="row" wx:if="{{form.auth === 3}}">
+      <text class="label">Bearer</text>
+      <input value="{{form.cred}}" data-k="cred" bindinput="onInput"
+            placeholder="JWT" placeholder-class="ph" />
+    </view>
+    <block wx:if="{{form.auth === 4}}">
+      <view class="row">
+        <text class="label">公钥 KeyId</text>
+        <input value="{{form.keyId}}" data-k="keyId" bindinput="onInput"
+              placeholder="mac-mini-01" placeholder-class="ph" />
+      </view>
+      <view class="row">
+        <text class="label">私钥 Secret</text>
+        <input value="{{form.secret}}" data-k="secret" bindinput="onInput" password="{{true}}"
+              placeholder="服务端 .env 里同一把" placeholder-class="ph" />
+      </view>
+      <view class="row">
+        <text class="muted" style="flex:1">握手时用 HMAC-SHA256 签 ts+nonce，密钥本身不上网。
+          服务端 .env 配 SBP_HMAC_KEYS=KeyId:Secret 时才需要填这项。</text>
+      </view>
+    </block>
+
+    <view class="row">
+      <text class="label">心跳间隔</text>
+      <input value="{{form.hbInterval}}" data-k="hbInterval" bindinput="onInput" type="number"
+            placeholder="20" placeholder-class="ph" />
+      <text class="unit">秒</text>
+    </view>
+    <view class="row">
+      <text class="label">心跳超时</text>
+      <input value="{{form.hbTimeout}}" data-k="hbTimeout" bindinput="onInput" type="number"
+            placeholder="60" placeholder-class="ph" />
+      <text class="unit">秒</text>
+    </view>
+    <view class="row">
+      <text class="label">自动重连</text>
+      <switch checked="{{form.autoReconnect}}" bindchange="onAuto" color="#2563eb" />
+    </view>
+  </view>
+
+  <view class="card" wx:if="{{editing}}">
+    <view class="row" wx:if="{{testMsg}}">
+      <text class="muted" style="flex:1">{{testMsg}}</text>
+    </view>
+    <button class="btn ghost" bindtap="test" loading="{{testing}}">测试连接</button>
+    <view style="height:16rpx"></view>
+    <button class="btn" bindtap="save">保存并使用</button>
+    <view style="height:16rpx"></view>
+    <button class="btn gray" bindtap="cancel" wx:if="{{editIdx !== null}}">取消</button>
+  </view>
+
+  <view class="card" wx:if="{{!editing}}">
+    <view class="row">
+      <text style="flex:1;font-weight:600">服务器列表</text>
+      <text class="muted" bindtap="add">＋ 新增</text>
+    </view>
+    <view class="row" wx:for="{{list}}" wx:key="id">
+      <view style="flex:1" bindtap="use" data-i="{{index}}">
+        <view>
+          <text>{{item.name || '未命名'}}</text>
+          <text class="muted" wx:if="{{index === currentIdx}}"> · 使用中</text>
+        </view>
+        <view class="muted mono">{{item.url}}</view>
+        <view class="muted">{{transNames[item.transIdx].t}} · {{authNames[item.authIdx].t}} · 心跳 {{item.hbInterval}}/{{item.hbTimeout}}s</view>
+      </view>
+      <text class="muted" style="padding:0 20rpx" bindtap="edit" data-i="{{index}}">改</text>
+      <text class="muted" bindtap="del" data-i="{{index}}">删</text>
+    </view>
+    <view class="row" wx:if="{{!list.length}}">
+      <text class="muted">还没有服务器。填好地址和认证信息，保存后即可连接。</text>
+    </view>
+  </view>
+
+  <view class="card" wx:if="{{!editing}}">
+    <view class="row"><text class="muted" style="flex:1">
+      公网部署：服务端要开 wss（443）并配好证书；小程序后台「开发管理 → 服务器域名 → socket 合法域名」
+      必须登记该域名。局域网调试可在地址里直接写 ws://192.168.x.x:20016/ws。
+    </text></view>
+  </view>
+</view>

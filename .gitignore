@@ -1,0 +1,8 @@
+# WeChat mini program ignore
+.DS_Store
+*.log
+node_modules/
+dist/
+
+# local dev config that may contain secrets
+project.private.config.json

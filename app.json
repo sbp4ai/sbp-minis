@@ -1,0 +1,27 @@
+{
+  "pages": [
+    "pages/settings/settings",
+    "pages/index/index",
+    "pages/session/session"
+  ],
+  "window": {
+    "backgroundTextStyle": "light",
+    "navigationBarBackgroundColor": "#111827",
+    "navigationBarTitleText": "SBP 远程会话",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#f5f6f8"
+  },
+  "tabBar": {
+    "color": "#98a2b3",
+    "selectedColor": "#2563eb",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "white",
+    "list": [
+      { "pagePath": "pages/index/index", "text": "会话" },
+      { "pagePath": "pages/settings/settings", "text": "服务器" }
+    ]
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json",
+  "lazyCodeLoading": "requiredComponents"
+}

@@ -1,0 +1,91 @@
+.bar {
+  display: flex;
+  align-items: center;
+  padding: 18rpx 24rpx;
+  background: #fff;
+  border-bottom: 1rpx solid #eef1f5;
+  position: sticky;
+  top: 0;
+  z-index: 9;
+}
+.dot {
+  width: 16rpx;
+  height: 16rpx;
+  border-radius: 50%;
+  background: #d0d5dd;
+  margin-right: 14rpx;
+  flex: 0 0 auto;
+}
+.dot.open  { background: #12b76a; }
+.dot.closed { background: #f79009; }
+.dot.live  { background: #12b76a; margin: 0 10rpx; }
+
+.srv { font-weight: 600; }
+.tip { color: #98a2b3; font-size: 24rpx; margin-left: 14rpx; flex: 1 1 auto; }
+.act { color: #2563eb; padding: 6rpx 16rpx; }
+
+.glist { padding: 12rpx 0 60rpx; }
+
+.group {
+  background: #fff;
+  margin: 12rpx 24rpx;
+  border-radius: 16rpx;
+  overflow: hidden;
+}
+.ghead {
+  display: flex;
+  align-items: center;
+  padding: 20rpx 24rpx;
+}
+.caret { color: #98a2b3; width: 32rpx; }
+.gname { font-weight: 600; }
+.cwd {
+  margin-left: auto;
+  font-size: 22rpx;
+  max-width: 260rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.items { padding: 0 24rpx 12rpx; }
+.item {
+  padding: 16rpx 18rpx;
+  border-radius: 12rpx;
+  background: #f9fafb;
+  margin-bottom: 10rpx;
+}
+.ihead { display: flex; align-items: center; }
+.sid { font-weight: 600; font-size: 26rpx; }
+.badge {
+  font-size: 20rpx;
+  background: #eff6ff;
+  color: #2563eb;
+  padding: 2rpx 12rpx;
+  border-radius: 999rpx;
+  margin-left: 14rpx;
+}
+.ihead .muted { margin-left: 14rpx; font-size: 22rpx; }
+.ihead .muted:last-child { margin-left: auto; }
+.ihead .dot { margin: 0 0 0 14rpx; }
+
+/* 未激活（历史会话）：整体灰掉；激活中：深黑 + 绿点 */
+.item.idle .sid { color: #98a2b3; font-weight: 500; }
+.item.idle .sub { color: #b6bdc9; }
+.item.idle { background: #fbfcfd; }
+.item .sid { color: #101828; }
+.item .dot.live {
+  width: 14rpx;
+  height: 14rpx;
+  background: #12b76a;
+  box-shadow: 0 0 0 6rpx rgba(18, 183, 106, .14);
+}
+.sub {
+  color: #667085;
+  font-size: 24rpx;
+  margin-top: 6rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.none { padding: 12rpx 18rpx; }

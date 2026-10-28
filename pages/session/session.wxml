@@ -1,0 +1,62 @@
+<view class="wrap">
+  <scroll-view class="stream" scroll-y scroll-top="{{scrollTop}}" bindscrolltoupper="loadOlder"
+               enhanced show-scrollbar="{{false}}" enable-flex>
+    <view class="inner">
+      <view class="more" wx:if="{{hasMore}}" bindtap="loadOlder">
+        {{loadingMore ? '加载中…' : '↑ 上滑加载更早'}}
+      </view>
+      <view class="more muted" wx:elif="{{msgs.length && !kindTerm}}">— 已到最早 —</view>
+
+      <view wx:for="{{msgs}}" wx:key="seq" class="msg {{item.role}}" bindlongpress="copy" data-i="{{index}}">
+        <view class="meta">
+          <text>{{item.time}}</text>
+          <text class="k" wx:if="{{item.kind !== 'text'}}">{{item.kind}}</text>
+        </view>
+        <view class="body">{{item.text}}</view>
+      </view>
+
+      <view class="more muted" wx:if="{{kindTerm}}">纯终端会话：下面是实时屏幕</view>
+    </view>
+  </scroll-view>
+
+  <!-- 实时屏幕 -->
+  <view class="screen-wrap">
+    <view class="shead" bindtap="toggleScreen">
+      <text class="caret">{{screenOpen ? '▾' : '▸'}}</text>
+      <text>实时屏幕</text>
+      <text class="st {{state}}">{{stateText}}</text>
+    </view>
+    <scroll-view wx:if="{{screenOpen}}" scroll-y class="screen" show-scrollbar="{{false}}">
+      <text class="mono">{{screenText}}</text>
+    </scroll-view>
+  </view>
+
+  <!-- SBP-0.2 交互提示 -->
+  <view class="prompt risk-{{prompt.risk}}" wx:if="{{prompt}}">
+    <view class="p-head">
+      <text class="p-title">{{prompt.title}}</text>
+      <text class="p-tag" wx:if="{{prompt.risk !== 'safe'}}">{{prompt.risk === 'danger' ? '危险操作' : '需要授权'}}</text>
+      <text class="p-x" bindtap="dismissPrompt">✕</text>
+    </view>
+    <view class="p-detail" wx:if="{{prompt.detail}}">{{prompt.detail}}</view>
+    <view class="p-opt {{item.risk === 'danger' ? 'danger' : ''}} {{item.default ? 'cur' : ''}}"
+          wx:for="{{prompt.options}}" wx:key="index"
+          data-i="{{item.index}}" data-free="{{item.free_text ? 1 : 0}}" bindtap="tapOption">
+      <text class="p-idx">{{item.index}}</text>
+      <text class="p-lab">{{item.label}}</text>
+      <text class="p-desc" wx:if="{{item.desc}}">{{item.desc}}</text>
+    </view>
+  </view>
+
+  <!-- 快捷键 -->
+  <scroll-view class="keys" scroll-x show-scrollbar="{{false}}" wx:if="{{editable}}">
+    <text class="key" wx:for="{{keys}}" wx:key="k" data-k="{{item.k}}" bindtap="sendKey">{{item.t}}</text>
+  </scroll-view>
+
+  <view class="composer" wx:if="{{editable}}">
+    <input class="ipt" value="{{draft}}" bindinput="onDraft" placeholder="输入指令，也可直接点上面的选项"
+          placeholder-class="ph" confirm-type="send" bindconfirm="send" />
+    <text class="send {{draft ? 'on' : ''}}" bindtap="send">发送</text>
+  </view>
+  <view class="readonly" wx:else>该会话不在 tmux 里，只读</view>
+</view>

@@ -1,0 +1,114 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #f5f6f8;
+}
+
+.stream {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 16rpx 20rpx;
+}
+.inner { padding-bottom: 12rpx; }
+
+.more {
+  text-align: center;
+  color: #667085;
+  font-size: 24rpx;
+  padding: 14rpx 0;
+}
+
+.msg {
+  background: #fff;
+  border-radius: 14rpx;
+  padding: 16rpx 20rpx;
+  margin-bottom: 12rpx;
+}
+.msg.user {
+  background: #eff6ff;
+  margin-left: 60rpx;
+}
+.msg.agent { margin-right: 60rpx; }
+
+.meta { color: #98a2b3; font-size: 22rpx; margin-bottom: 6rpx; }
+.meta .k {
+  margin-left: 12rpx;
+  background: #f2f4f7;
+  border-radius: 6rpx;
+  padding: 0 10rpx;
+}
+.body {
+  font-size: 27rpx;
+  line-height: 1.62;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.screen-wrap { flex: 0 0 auto; background: #fff; border-top: 1rpx solid #eef1f5; }
+.shead {
+  display: flex;
+  align-items: center;
+  padding: 14rpx 24rpx;
+  color: #667085;
+  font-size: 25rpx;
+}
+.caret { width: 30rpx; color: #98a2b3; }
+.st { margin-left: auto; font-size: 22rpx; }
+.st.waiting { color: #b54708; }
+.st.running { color: #2563eb; }
+.st.idle    { color: #98a2b3; }
+
+.screen {
+  max-height: 34vh;
+  background: #0b1220;
+  padding: 12rpx 18rpx;
+}
+.screen .mono {
+  color: #d7e0ea;
+  font-size: 21rpx;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.prompt { margin: 12rpx 20rpx 0; }
+
+.keys { flex: 0 0 auto; white-space: nowrap; padding: 10rpx 16rpx 0; }
+.key {
+  display: inline-block;
+  background: #fff;
+  border: 1rpx solid #e4e7ec;
+  border-radius: 10rpx;
+  padding: 8rpx 22rpx;
+  margin-right: 12rpx;
+  font-size: 25rpx;
+  color: #344054;
+}
+
+.composer {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  padding: 14rpx 20rpx calc(14rpx + env(safe-area-inset-bottom));
+  background: #fff;
+  border-top: 1rpx solid #eef1f5;
+}
+.ipt {
+  flex: 1 1 auto;
+  background: #f2f4f7;
+  border-radius: 12rpx;
+  padding: 14rpx 20rpx;
+  font-size: 27rpx;
+}
+.ph { color: #98a2b3; }
+.send { color: #98a2b3; padding: 0 10rpx 0 22rpx; font-size: 28rpx; }
+.send.on { color: #2563eb; font-weight: 600; }
+
+.readonly {
+  flex: 0 0 auto;
+  text-align: center;
+  color: #98a2b3;
+  padding: 18rpx;
+  background: #fff;
+  border-top: 1rpx solid #eef1f5;
+}
