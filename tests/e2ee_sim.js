@@ -1,18 +1,18 @@
 /**
  * 在 Node 里跑小程序 E2EE 链路：mock wx.connectSocket，真连一次 sbp-dispatcher 的 /ws-e2ee。
  *
- * 配置直接来自 sbp-agent 生成的 .copy4client（模拟小程序「粘贴导入」），
+ * 配置直接来自 sbp-agent 生成的 .copy2client（模拟小程序「粘贴导入」），
  * 走的是 utils/e2ee.js（tweetnacl）+ utils/sbp.js 的真实代码路径。
  *
  * 用法：
  *   cd sbp-minis
- *   NODE_PATH=<node_modules> node tests/e2ee_sim.js /path/to/.copy4client [ws://127.0.0.1:8799/ws-e2ee]
+ *   NODE_PATH=<node_modules> node tests/e2ee_sim.js /path/to/.copy2client [ws://127.0.0.1:8799/ws-e2ee]
  */
 const fs = require('fs')
 const path = require('path')
 const WebSocket = require('ws')
 
-const copyFile = process.argv[2] || '/tmp/e2ee_run/.copy4client'
+const copyFile = process.argv[2] || '/tmp/e2ee_run/.copy2client'
 const overrideUrl = process.argv[3] || ''
 
 // ---------------------------------------------------------------- mock wx
@@ -48,7 +48,7 @@ function ck(name, cond, extra) {
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)) }
 
 ;(async () => {
-  console.log('\n[1] 粘贴导入：解析 .copy4client')
+  console.log('\n[1] 粘贴导入：解析 .copy2client')
   const cfgs = e2ee.parseConnectText(fs.readFileSync(copyFile, 'utf8'))
   ck('解析出连接串', cfgs.length >= 1, cfgs.length + ' 条')
   const cfg = cfgs.filter(c => c.myKeyId === 'cli-minis')[0] || cfgs[0]

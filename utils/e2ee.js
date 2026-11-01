@@ -183,14 +183,14 @@ function generateKeypair() {
   }
 }
 
-/** 只接受 64-hex 的 rk（.copy4client 里就是这种）—— 小程序里没有 Argon2id。 */
+/** 只接受 64-hex 的 rk（.copy2client 里就是这种）—— 小程序里没有 Argon2id。 */
 function deriveRk(material) {
   if (typeof material === 'string' && /^[0-9a-fA-F]{64}$/.test(material)) {
     var rk = new Uint8Array(32)
     for (var i = 0; i < 32; i++) rk[i] = parseInt(material.substr(i * 2, 2), 16)
     return rk
   }
-  throw new Error('小程序只支持 64-hex 的路由密钥 rk（.copy4client 导出的就是这种）')
+  throw new Error('小程序只支持 64-hex 的路由密钥 rk（.copy2client 导出的就是这种）')
 }
 
 // ------------------------------------------------------------- 路由盲化
@@ -242,7 +242,7 @@ function unwrap(envelope, rk, receiver_box_sk, peer_sign_pk) {
   return JSON.parse(bytesToUtf8(plain))
 }
 
-// -------------------------------------------------- 连接串（.copy4client）
+// -------------------------------------------------- 连接串（.copy2client）
 function decodeConnect(line) {
   var raw = String(line).trim()
   if (raw.indexOf(CONNECT_PREFIX) !== 0) throw new Error('不是 sbp1. 连接串')
@@ -268,7 +268,7 @@ function parseConnectText(text) {
 
 /** cfg（粘贴导入进来的连接串）-> E2EELink。私钥只存在小程序的 storage 里。 */
 function makeLink(cfg) {
-  if (!cfg || !cfg.box_sk || !cfg.sign_sk) throw new Error('E2EE 配置缺少私钥，请用 .copy4client 导入')
+  if (!cfg || !cfg.box_sk || !cfg.sign_sk) throw new Error('E2EE 配置缺少私钥，请用 .copy2client 导入')
   if (!cfg.rk) throw new Error('E2EE 配置缺少路由密钥 rk')
   if (!cfg.peerBoxPk || !cfg.peerSignPk) throw new Error('E2EE 配置缺少设备公钥')
   return new E2EELink({

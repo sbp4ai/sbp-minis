@@ -37,7 +37,7 @@ function blank() {
     hbInterval: 20,
     hbTimeout: 60,
     autoReconnect: true,
-    // ---- SBP-0.4 E2EE：由 .copy4client 导入，不在小程序里手填 ----
+    // ---- SBP-0.4 E2EE：由 .copy2client 导入，不在小程序里手填 ----
     e2ee: false,
     did: '',
     myKeyId: '',
