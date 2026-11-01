@@ -1,6 +1,9 @@
 <view class="bar">
   <view class="dot {{state}}"></view>
-  <text class="srv">{{(cfg && (cfg.name || cfg.url)) || '未配置服务器'}}</text>
+  <picker mode="selector" range="{{serverNames}}" value="{{serverIdx}}" bindchange="onSwitch" wx:if="{{serverNames.length}}">
+    <view class="srv">{{(cfg && (cfg.name || cfg.url)) || '未配置服务器'}} <text class="caret">▾</text></view>
+  </picker>
+  <text class="srv" wx:else>{{(cfg && (cfg.name || cfg.url)) || '未配置服务器'}}</text>
   <text class="tip">{{tip}}</text>
   <text class="act" bindtap="reload">⟳</text>
 </view>

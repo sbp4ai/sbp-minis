@@ -19,7 +19,9 @@ Page({
     tip: '',
     groups: [],
     loading: false,
-    err: ''
+    err: '',
+    serverNames: [],
+    serverIdx: 0
   },
 
   onLoad: function () {
@@ -40,10 +42,25 @@ Page({
 
   onShow: function () {
     var cfg = app.currentCfg()
-    this.setData({ cfg: cfg })
+    var names = app.servers().map(function (s) { return s.name || s.url || '未命名' })
+    this.setData({
+      cfg: cfg,
+      serverNames: names,
+      serverIdx: app.globalData.current || 0
+    })
     if (!cfg) return
     if (sbp.state !== 'open') this.reload()
     else this.load()
+  },
+
+  /** 顶部下拉换机器：先断开旧连接，再用新配置重连 */
+  onSwitch: function (e) {
+    var idx = +e.detail.value
+    if (idx === app.globalData.current) return
+    app.useServer(idx)
+    sbp.close()
+    this.setData({ cfg: app.currentCfg(), serverIdx: idx, groups: [], err: '' })
+    this.reload()
   },
 
   onPullDownRefresh: function () {
