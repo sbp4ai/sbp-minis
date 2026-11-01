@@ -14,6 +14,8 @@
 
 var V = 'sbp/0.1'
 var hmac = require('./hmac.js')
+// SBP-0.4 端到端加密：只有 cfg.e2ee 时才启用，走 /ws-e2ee + 信封（中继看不到明文）
+var e2ee = require('./e2ee.js')
 
 /**
  * 地址只留一个输入框：scheme://host:port/path 全都能从这一串里拆出来。
@@ -72,6 +74,20 @@ function SBP() {
   this._lastScreen = {}       // sid -> 上次屏幕文本
   this._lastPrompt = {}       // sid -> {pid, state}
   this._seenSeq = {}          // sid -> {seq:1}
+  // ---- E2EE（SBP-0.4）----
+  this.link = null            // cfg.e2ee 时才有：加解密 + 订阅
+  this._subs = {}             // 已经 sub 过的 scope
+}
+
+/** 订阅某个 tag（设备级 / 会话级），中继按 tag 把密文投给我们。 */
+SBP.prototype._sub = function (scope) {
+  if (!this.link || !this.ws || this._subs[scope]) return
+  this._subs[scope] = 1
+  try { this.ws.send({ data: JSON.stringify(this.link.subscribe(scope)) }) } catch (e) {}
+}
+
+SBP.prototype._wsRaw = function (obj) {
+  if (this.ws) this.ws.send({ data: JSON.stringify(obj) })
 }
 
 SBP.prototype.on = function (name, fn) {
@@ -89,9 +105,26 @@ SBP.prototype.emit = function (name, payload, frame) {
   ;(this.listeners['*'] || []).forEach(function (f) { f(name, payload, frame) })
 }
 
+/** E2EE 走 /ws-e2ee：把任何地址（含 /ws 结尾的）改写到加密端点。 */
+function e2eeUrl(raw) {
+  var s = String(raw || '').trim().replace(/\/+$/, '')
+  if (!s) return s
+  var i = s.indexOf('://')
+  var scheme = i > -1 ? s.slice(0, i + 3) : ''
+  var rest = i > -1 ? s.slice(i + 3) : s
+  var j = rest.indexOf('/')
+  var host = j > -1 ? rest.slice(0, j) : rest
+  var path = j > -1 ? rest.slice(j) : ''
+  if (!path || path === '/') path = '/ws-e2ee'
+  else if (!/ws-e2ee$/.test(path)) path = path + '/ws-e2ee'
+  return scheme + host + path
+}
+
 // ------------------------------------------------------------------ url
 SBP.prototype.url = function (cfg) {
-  var p = parseUrl(cfg.url || (cfg.host ? cfg.host + ':' + (cfg.port || 443) + (cfg.path || '/ws') : ''))
+  var raw = cfg.url || (cfg.host ? cfg.host + ':' + (cfg.port || 443) + (cfg.path || '/ws') : '')
+  if (cfg.e2ee) raw = e2eeUrl(raw)
+  var p = parseUrl(raw)
   var url = (p.wss ? 'wss' : 'ws') + '://' + (p.host.indexOf(':') > -1 ? '[' + p.host + ']' : p.host) +
             ':' + p.port + (p.path.charAt(0) === '/' ? p.path : '/' + p.path)
   if (cfg.auth === 'token' && cfg.cred) {
@@ -105,7 +138,10 @@ SBP.prototype.connect = function (cfg) {
   var that = this
   this.cfg = cfg
   this.wantClose = false
-  this.mode = (cfg && cfg.transport === 'ws') ? 'ws' : 'rest'
+  this.link = null
+  this._subs = {}
+  // E2EE 只有 WS 通道（REST 通道里中继要读 body，没法端到端加密）
+  this.mode = (cfg && (cfg.e2ee || cfg.transport === 'ws')) ? 'ws' : 'rest'
   this._base = restBase(cfg)
   if (this.mode === 'ws') return this._wsConnect(cfg)
   // ---- REST 模式：不建长连接，直接当作「已就绪」，每个请求独立打服务端 ----
@@ -143,11 +179,24 @@ SBP.prototype._wsConnect = function (cfg) {
       that.state = 'open'
       that.retry = 0
       that.lastRecv = Date.now()
+      // ---- E2EE：先建链路（私钥只在本地），hello 帧里带 Ed25519 签名挑战 ----
+      if (cfg.e2ee) {
+        try {
+          that.link = e2ee.makeLink(cfg)
+        } catch (err) {
+          settled = true
+          that.emit('error', { code: 'E_E2EE', msg: err.message })
+          reject({ code: 'E_E2EE', msg: 'E2EE 配置错误：' + err.message })
+          try { that.ws.close() } catch (e2) {}
+          return
+        }
+      }
       that.emit('open')
       settled = true
       resolve(true)
       // 握手：拿服务端能力与版本。sbp-server 要求 token 在这一帧里
       var hp = { role: 'client' }
+      if (cfg.e2ee && that.link) hp = that.link.hello().payload
       if (cfg.auth === 'token' && cfg.cred) hp.token = cfg.cred
       if (cfg.auth === 'hmac' && cfg.secret) {
         var ts = Date.now()
@@ -163,6 +212,8 @@ SBP.prototype._wsConnect = function (cfg) {
       that._wsReq('hello', hp, null, 6000).then(function (pl) {
         that.server = pl.server || {}
         that.caps = pl.caps || []
+        // E2EE：握手过了才订阅设备 tag（中继要先用 hello 认下这个 keyId）
+        if (that.link) that._sub(that.link.deviceScope())
       }).catch(function (e) {
         // 服务端要求签名而这里没配 —— 直接踢掉，别留一条假在线的线
         if (e && e.code === 'E_AUTH') that.emit('auth-fail', e)
@@ -201,6 +252,8 @@ SBP.prototype.scheduleReconnect = function () {
 
 SBP.prototype.close = function () {
   this.wantClose = true
+  this.link = null
+  this._subs = {}
   clearTimeout(this.timer)
   this.stopHeartbeat()
   this.state = 'closed'
@@ -228,12 +281,12 @@ SBP.prototype.startHeartbeat = function () {
       return
     }
     that.hbN++
-    that.ws.send({
-      data: JSON.stringify({
-        v: V, id: 'hb' + that.hbN, type: 'req', name: 'ping',
-        payload: { t: Date.now(), rtt: silent }
-      })
-    })
+    var ping = {
+      v: V, id: 'hb' + that.hbN, type: 'req', name: 'ping',
+      payload: { t: Date.now(), rtt: silent }
+    }
+    if (that.link) ping = that.link.send(ping, that.link.deviceScope())
+    that.ws.send({ data: JSON.stringify(ping) })
   }, iv)
 }
 
@@ -261,6 +314,13 @@ SBP.prototype._wsReq = function (name, payload, sid, timeout) {
         reject({ code: 'E_TIMEOUT', msg: '请求超时：' + name })
       }, timeout)
     }
+    if (that.link && name !== 'hello') {
+      // E2EE：内层帧封进信封；会话级请求要先订阅那个会话的 tag，否则回包投不到。
+      // hello 是例外 —— 中继要明文读 keyId/ts/nonce/sig 来验签，不能封。
+      var scope = sid ? that.link.sessionScope(sid) : that.link.deviceScope()
+      if (sid) that._sub(scope)
+      frame = that.link.send(frame, scope)
+    }
     that.ws.send({ data: JSON.stringify(frame) })
   })
 }
@@ -269,7 +329,14 @@ SBP.prototype._wsOnMessage = function (data) {
   var f
   this.lastRecv = Date.now()
   try { f = JSON.parse(data) } catch (e) { return }
-  if (!f || !f.type) return
+  if (!f || (!f.type && !f.cipher && !f.ctl)) return
+  if (this.link) {
+    if (f.ctl) return                       // 中继自己的控制帧（sub/unsub）
+    if (f.cipher) {                         // 信封：解密成内层帧
+      try { f = this.link.recv(f) } catch (e) { return }
+    }
+    // 明文的是中继帧（hello.ok），原样往下走
+  }
   if (f.type === 'res') {
     var p = this.pending[f.ref]
     if (p) {

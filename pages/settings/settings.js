@@ -1,5 +1,6 @@
 const app = getApp()
 const sbp = app.globalData.sbp
+const e2ee = require('../../utils/e2ee.js')
 
 const AUTH = [
   { t: '无', v: 'none' },
@@ -35,7 +36,19 @@ function blank() {
     pollInterval: 5,
     hbInterval: 20,
     hbTimeout: 60,
-    autoReconnect: true
+    autoReconnect: true,
+    // ---- SBP-0.4 E2EE：由 .copy4client 导入，不在小程序里手填 ----
+    e2ee: false,
+    did: '',
+    myKeyId: '',
+    rk: '',
+    peerKeyId: '',
+    peerBoxPk: '',
+    peerSignPk: '',
+    box_sk: '',
+    sign_sk: '',
+    box_pk: '',
+    sign_pk: ''
   }
 }
 
@@ -62,7 +75,9 @@ Page({
     transNames: TRANS,
     parsed: '',
     testing: false,
-    testMsg: ''
+    testMsg: '',
+    paste: '',
+    importMsg: ''
   },
 
   onShow: function () {
@@ -72,12 +87,43 @@ Page({
       m.transIdx = transIdx(m.transport || 'rest')
       return m
     })
-    this.setData({
-      list: list,
-      currentIdx: app.globalData.current,
-      parsed: '',
-      testMsg: ''
+      this.setData({
+        list: list,
+        currentIdx: app.globalData.current,
+        parsed: '',
+        testMsg: '',
+        paste: '',
+        importMsg: ''
+      })
+  },
+
+  // ------------------------------------------------------------ 粘贴导入
+  onPaste: function (e) { this.setData({ paste: e.detail.value }) },
+
+  importPaste: function () {
+    var that = this
+    var text = this.data.paste || ''
+    var cfgs = []
+    try {
+      cfgs = e2ee.parseConnectText(text)
+    } catch (err) {
+      this.setData({ importMsg: '✗ 解析失败：' + (err && err.message) })
+      return
+    }
+    if (!cfgs.length) {
+      this.setData({ importMsg: '✗ 没找到连接串 —— 内容里要有 sbp1. 开头的行' })
+      return
+    }
+    cfgs.forEach(function (cfg) {
+      if (!cfg.url) return
+      cfg.name = cfg.name || cfg.myKeyId
+      // 导入的连接串自带私钥，直接存进配置（小程序 storage，不上传）
+      var pos = app.saveServer(cfg, null)
+      if (app.globalData.current === null || app.globalData.current === undefined) app.useServer(pos)
     })
+    this.setData({ paste: '', importMsg: '✓ 已导入 ' + cfgs.length + ' 条（含私钥，别截图外发）' })
+    wx.showToast({ title: '已导入 ' + cfgs.length + ' 条', icon: 'none' })
+    this.onShow()
   },
 
   // ------------------------------------------------------------ 表单
