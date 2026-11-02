@@ -1,33 +1,43 @@
-<view class="wrap">
-  <scroll-view class="stream" scroll-y scroll-top="{{scrollTop}}" bindscrolltoupper="loadOlder"
-               enhanced show-scrollbar="{{false}}" enable-flex>
-    <view class="inner">
-      <view class="more" wx:if="{{hasMore}}" bindtap="loadOlder">
-        {{loadingMore ? '加载中…' : '↑ 上滑加载更早'}}
-      </view>
-      <view class="more muted" wx:elif="{{msgs.length && !kindTerm}}">— 已到最早 —</view>
+<view class="wrap {{histOff ? 'hist-off' : ''}} {{shell ? 'shellmode' : ''}}">
 
-      <view wx:for="{{msgs}}" wx:key="seq" class="msg {{item.role}}" bindlongpress="copy" data-i="{{index}}">
-        <view class="meta">
-          <text>{{item.time}}</text>
-          <text class="k" wx:if="{{item.kind !== 'text'}}">{{item.kind}}</text>
-        </view>
-        <view class="body">{{item.text}}</view>
-      </view>
-
-      <view class="more muted" wx:if="{{kindTerm}}">纯终端会话：下面是实时屏幕</view>
+  <!-- 会话历史：默认展开，点标题折叠；空终端没有历史，整块不出现 -->
+  <view class="hist" wx:if="{{!shell}}">
+    <view class="phead" bindtap="toggleHist">
+      <text class="caret">{{histOff ? '▸' : '▾'}}</text>
+      <text class="ptitle">会话历史</text>
+      <text class="pnum" wx:if="{{msgs.length}}">{{msgs.length}} 条</text>
+      <text class="pnum" wx:if="{{histOff && msgs.length}}">点开查看</text>
     </view>
-  </scroll-view>
+    <scroll-view wx:if="{{!histOff}}" class="msgs" scroll-y scroll-top="{{scrollTop}}"
+                 bindscrolltoupper="loadOlder" enhanced show-scrollbar="{{false}}">
+      <view class="inner">
+        <view class="more" wx:if="{{hasMore}}" bindtap="loadOlder">
+          {{loadingMore ? '加载中…' : '↑ 上滑加载更早'}}
+        </view>
+
+        <view wx:for="{{msgs}}" wx:key="seq" class="msg {{item.role}}" bindlongpress="copy" data-i="{{index}}">
+          <view class="meta">
+            <text class="who">{{item.role === 'user' ? '我' : 'agent'}}</text>
+            <text wx:if="{{item.time}}">{{item.time}}</text>
+            <text class="k" wx:if="{{item.kind !== 'text'}}">{{item.kind}}</text>
+          </view>
+          <view class="body">{{item.text}}</view>
+        </view>
+
+        <view class="more muted" wx:if="{{!msgs.length}}">这个会话还没有可展示的历史</view>
+      </view>
+    </scroll-view>
+  </view>
 
   <!-- 实时屏幕 -->
   <view class="screen-wrap">
-    <view class="shead" bindtap="toggleScreen">
+    <view class="phead dark" bindtap="toggleScreen">
       <text class="caret">{{screenOpen ? '▾' : '▸'}}</text>
-      <text>实时屏幕</text>
+      <text class="ptitle">实时屏幕</text>
       <text class="st {{state}}">{{stateText}}</text>
     </view>
     <scroll-view wx:if="{{screenOpen}}" scroll-y class="screen" show-scrollbar="{{false}}">
-      <text class="mono">{{screenText}}</text>
+      <text class="mono">{{screenText || ' '}}</text>
     </scroll-view>
   </view>
 
@@ -48,14 +58,21 @@
     </view>
   </view>
 
+  <!-- 空终端：点一下把 agent 敲起来 -->
+  <view class="quick" wx:if="{{shell && editable}}">
+    <text class="qlabel">启动 agent</text>
+    <text class="qcmd" wx:for="{{cmds}}" wx:key="*this" data-cmd="{{item}}" bindtap="quickCmd">{{item}}</text>
+  </view>
+
   <!-- 快捷键 -->
   <scroll-view class="keys" scroll-x show-scrollbar="{{false}}" wx:if="{{editable}}">
     <text class="key" wx:for="{{keys}}" wx:key="k" data-k="{{item.k}}" bindtap="sendKey">{{item.t}}</text>
   </scroll-view>
 
   <view class="composer" wx:if="{{editable}}">
-    <input class="ipt" value="{{draft}}" bindinput="onDraft" placeholder="输入指令，也可直接点上面的选项"
-          placeholder-class="ph" confirm-type="send" bindconfirm="send" />
+    <input class="ipt" value="{{draft}}" bindinput="onDraft"
+           placeholder="{{shell ? '输入命令并回车，例如 claude' : '输入指令，也可直接点上面的选项'}}"
+           placeholder-class="ph" confirm-type="send" bindconfirm="send" />
     <text class="send {{draft ? 'on' : ''}}" bindtap="send">发送</text>
   </view>
   <view class="readonly" wx:else>该会话不在 tmux 里，只读</view>

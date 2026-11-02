@@ -7,7 +7,8 @@
 // 传输层有两条：
 //   rest（默认）—— 定时 HTTP 轮询，GET 带 ETag（没变回 304 不带 body），写操作走 POST /api/rpc。
 //                  不保持长连接，最省服务端资源，断网/网关拦 WS 都能用。
-//   ws（可选）  —— 长连接，服务端主动推；在配置里把 transport 显式设成 "ws" 才开，连不上再降级。
+//   ws（可选）  —— 长连接，服务端主动推；transport 显式设成 "ws"，或地址本身以
+//                  ws:// / wss:// 开头时自动选中，连不上再降级。
 //
 // 两种传输对外的语义封装（list/attach/history/input/answer/key/snapshot）完全一致，
 // 页面代码不感知差别；差别只在「这一帧是走 REST 还是走 WS」。
@@ -141,7 +142,11 @@ SBP.prototype.connect = function (cfg) {
   this.link = null
   this._subs = {}
   // E2EE 只有 WS 通道（REST 通道里中继要读 body，没法端到端加密）
-  this.mode = (cfg && (cfg.e2ee || cfg.transport === 'ws')) ? 'ws' : 'rest'
+  // transport 显式声明优先；没声明时按地址判断：ws:// wss:// 就当长连接
+  var raw = (cfg && cfg.url) || ''
+  var byScheme = /^wss?:\/\//i.test(raw)
+  this.mode = (cfg && (cfg.e2ee || cfg.transport === 'ws'
+    || (cfg.transport !== 'rest' && byScheme))) ? 'ws' : 'rest'
   this._base = restBase(cfg)
   if (this.mode === 'ws') return this._wsConnect(cfg)
   // ---- REST 模式：不建长连接，直接当作「已就绪」，每个请求独立打服务端 ----
@@ -447,7 +452,8 @@ SBP.prototype._startPoller = function (sid, interval) {
   var that = this
   this._stopPoller(sid)
   var iv = Math.max(2000, (interval || 5) * 1000)
-  var isTerm = sid.slice(0, 5) === 'term:'
+  // term: 只有屏幕；shell: 空终端（没有 agent，等用户敲命令唤醒）
+  var isTerm = sid.slice(0, 5) === 'term:' || sid.slice(0, 6) === 'shell:'
   var timer = setInterval(function () {
     if (that.wantClose || that.mode !== 'rest') { that._stopPoller(sid); return }
     that._restState(sid, interval).then(function (st) {
@@ -523,7 +529,7 @@ SBP.prototype.attach = function (sid) {
   return this._restState(sid, interval).then(function (st) {
     that._startPoller(sid, interval)
     return { sid: sid, last_seq: st.last_seq, tmux: st.tmux,
-             editable: !!st.tmux, kind: st.tmux ? 'term' : 'claude', prompt: st.prompt }
+             editable: !!st.tmux, kind: st.kind || (st.tmux ? 'term' : 'claude'), prompt: st.prompt }
   })
 }
 

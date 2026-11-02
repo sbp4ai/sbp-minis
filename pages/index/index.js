@@ -12,6 +12,29 @@ function ago(ms) {
   return (t.getMonth() + 1) + '-' + t.getDate()
 }
 
+var AGENT_LABEL = {
+  'claude-code': 'Claude', 'qwen-code': 'Qwen', 'qodercli': 'Qoder',
+  codex: 'Codex', dsh: 'DSH', aider: 'Aider', opencode: 'OpenCode',
+  hermes: 'Hermes', openclaw: 'OpenClaw', workbuddy: 'WorkBuddy'
+}
+
+/** 侧栏配色：按 agent 给每个会话一个稳定的标签字母与色号 */
+function agentTag(agent, kind) {
+  if (kind === 'shell') return { letter: '>_', cls: 'shell', name: '空终端' }
+  var a = String(agent || '')
+  var key = 'other'
+  if (a.indexOf('claude') > -1) key = 'claude'
+  else if (a.indexOf('codex') > -1) key = 'codex'
+  else if (a.indexOf('dsh') > -1) key = 'dsh'
+  else if (a.indexOf('qwen') > -1) key = 'qwen'
+  else if (a.indexOf('hermes') > -1) key = 'hermes'
+  return {
+    letter: (AGENT_LABEL[a] || a || '?').slice(0, 1).toUpperCase(),
+    cls: key,
+    name: AGENT_LABEL[a] || a || (kind === 'term' ? '终端' : 'agent')
+  }
+}
+
 Page({
   data: {
     cfg: null,
@@ -21,7 +44,8 @@ Page({
     loading: false,
     err: '',
     serverNames: [],
-    serverIdx: 0
+    serverIdx: 0,
+    total: 0
   },
 
   onLoad: function () {
@@ -38,6 +62,9 @@ Page({
       that.setData({ err: '认证失败：' + ((e && e.msg) || '签名不对') + '，去服务器页检查密钥' })
       sbp.close()
     })
+    // 设备侧索引变化（agent 起了 / 退了）：列表跟着变，不用等下拉刷新
+    sbp.on('sessions.index', function () { that.load() })
+    sbp.on('session.index', function () { that.load() })
   },
 
   onShow: function () {
@@ -89,31 +116,64 @@ Page({
   load: function () {
     var that = this
     this.setData({ loading: true })
+    var cfg = app.currentCfg() || {}
     return sbp.list().then(function (pl) {
-      var groups = (pl.groups || []).map(function (g, i) {
-        return {
-          key: g.kind + ':' + g.name,
-          name: g.name,
-          kind: g.kind,
-          cwd: g.cwd,
-          live: g.live,
-          count: g.count,
-          open: i === 0 || g.kind === 'term',
-          items: (g.items || []).map(function (it) {
-            return {
-              sid: it.sid,
-              short: it.short || it.sid.slice(0, 8),
-              subtitle: it.subtitle || '',
-              count: it.count,
-              kind: it.kind,
-              agent: it.agent,
-              active: !!it.active,
-              ago: ago(it.updated_at)
-            }
-          })
+      var total = 0
+      var secs = []
+      var byKey = {}
+      ;(pl.groups || []).forEach(function (g) {
+        // 灰的历史会话不上列表：只留「此刻还在跑」的那些（空终端占位也算一条）
+        var items = (g.items || []).filter(function (it) {
+          return it.active === true || it.status === 'running'
+        }).map(function (it) {
+          var tag = agentTag(it.agent, it.kind)
+          var title = it.title || it.short || it.sid.slice(0, 8)
+          var tmux = it.tmux || g.name || ''
+          return {
+            sid: it.sid,
+            short: it.short || it.sid.slice(0, 8),
+            title: title,
+            subtitle: it.subtitle || '',
+            // 标题本身就是 tmux 名（空终端）时不再重复挂个 chip
+            tmux: tmux === title ? '' : tmux,
+            count: it.count || 0,
+            kind: it.kind,
+            agent: it.agent,
+            shell: it.kind === 'shell',
+            tag: tag,
+            time: ago(it.updated_at)
+          }
+        })
+        if (!items.length) return
+        // 面板把每个 tmux 报成一个 group，中继按设备报（带 did）。
+        // 这里统一成「一台机器一张卡」，卡里再按会话列，否则一屏全是重复的组头。
+        var local = !g.did
+        var key = local ? 'local' : ('did:' + g.did)
+        var sec = byKey[key]
+        if (!sec) {
+          sec = byKey[key] = {
+            key: key,
+            name: local ? (cfg.name || '本机') : (g.name || '设备'),
+            cwd: local ? '' : (g.cwd || ''),
+            live: false,
+            count: 0,
+            open: true,
+            items: []
+          }
+          secs.push(sec)
         }
+        sec.live = sec.live || !!g.live
+        sec.count += items.length
+        sec.items = sec.items.concat(items)
+        total += items.length
       })
-      that.setData({ groups: groups, loading: false, err: '' })
+      // 有 agent 在跑的机器排前面
+      secs.sort(function (a, b) {
+        if (a.live !== b.live) return a.live ? -1 : 1
+        if (a.live) return 0
+        return a.name > b.name ? 1 : -1
+      })
+      that.setData({ groups: secs, total: total, loading: false, err: '' })
     }).catch(function (e) {
       that.setData({ loading: false, err: (e && e.msg) || '列表加载失败' })
       throw e

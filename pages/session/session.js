@@ -8,6 +8,9 @@ const KEYS = [
   { k: 'ENTER', t: 'Enter' }, { k: 'C-C', t: 'Ctrl-C' }
 ]
 
+// 空终端里一键敲起来的 agent；点一下就等于把命令写进 tmux
+const CMDS = ['claude', 'codex', 'dsh', 'hermes']
+
 function hhmm(ts) {
   if (!ts) return ''
   var d = new Date(typeof ts === 'number' ? ts : Date.parse(ts))
@@ -24,30 +27,38 @@ Page({
   data: {
     sid: '',
     short: '',
-    kindTerm: false,
+    kind: '',
+    shell: false,
     msgs: [],
     hasMore: false,
     nextBefore: null,
     loadingMore: false,
     scrollTop: 0,
-    screenOpen: false,
+    histOff: false,        // 会话历史折叠（默认展开）
+    screenOpen: true,
     screenText: '',
     state: 'idle',
     stateText: '空闲',
     editable: false,
     prompt: null,
     draft: '',
-    keys: KEYS
+    keys: KEYS,
+    cmds: CMDS
   },
 
   // ------------------------------------------------------------ 生命周期
   onLoad: function (opt) {
     var sid = decodeURIComponent(opt.sid || '')
     this.sid = sid
-    this.short = sid.replace(/^term:/, '').slice(0, 8)
-    this.kindTerm = sid.slice(0, 5) === 'term:'
+    this.kindTerm = sid.slice(0, 5) === 'term:' || sid.slice(0, 6) === 'shell:'
+    this.short = sid.replace(/^(term|shell):/, '').slice(0, 8)
     this.seen = {}
-    this.setData({ sid: sid, short: this.short, kindTerm: this.kindTerm })
+    var off = false
+    try { off = !!wx.getStorageSync('sbp_hist_off:' + sid) } catch (e) {}
+    this.setData({
+      sid: sid, short: this.short, kindTerm: this.kindTerm,
+      shell: sid.slice(0, 6) === 'shell:', histOff: off
+    })
     wx.setNavigationBarTitle({ title: this.short })
   },
 
@@ -70,6 +81,10 @@ Page({
       if (pl.sid !== that.sid) return
       that.onPrompt(pl)
     })
+    // 空终端里敲起 agent 之后，sid 会从 shell:<tmux> 变成该 agent 的会话 id：
+    // 自动跟过去，用户不用退回列表再点一次
+    sbp.on('sessions.index', function (pl) { that.followAgent(pl) })
+    sbp.on('session.index', function (pl) { that.followAgent(pl) })
 
     if (sbp.state !== 'open') {
       var cfg = app.currentCfg()
@@ -85,9 +100,34 @@ Page({
   onHide: function () {
     // 离开页面不再接收这个会话的事件；连接本身留给列表页
     sbp.off('session.message'); sbp.off('output.delta'); sbp.off('session.state'); sbp.off('session.prompt')
+    sbp.off('sessions.index'); sbp.off('session.index')
     if (this.sid) sbp.detach(this.sid)
   },
   onUnload: function () { this.onHide() },
+
+  /** 空终端里 agent 起来了：同一 tmux 里出现非 shell 会话，就切过去（只切一次） */
+  followAgent: function (frame) {
+    if (!this.data.shell || this._followed) return
+    var pl = (frame && frame.payload) || frame || {}
+    var tmux = this.sid.replace(/^shell:/, '').split('#')[0]
+    var hit = null
+    ;(pl.groups || []).forEach(function (g) {
+      (g.items || []).forEach(function (it) {
+        if (hit || !it || it.kind === 'shell') return
+        if (!(it.active === true || it.status === 'running')) return
+        if ((it.tmux || g.name || '') !== tmux) return
+        hit = it
+      })
+    })
+    if (!hit) return
+    this._followed = true
+    var that = this
+    wx.showToast({ title: 'agent 已启动，正在切换…', icon: 'none' })
+    setTimeout(function () {
+      wx.redirectTo({ url: '/pages/session/session?sid=' + encodeURIComponent(hit.sid) })
+      that._followed = false
+    }, 600)
+  },
 
   // ------------------------------------------------------------ 打开会话
   boot: function () {
@@ -95,17 +135,21 @@ Page({
     if (this._booted) return
     this._booted = true
     sbp.attach(this.sid).then(function (pl) {
+      var kind = pl.kind || (that.kindTerm ? 'term' : 'claude')
+      var shell = kind === 'shell'
       that.setData({
         editable: !!pl.editable,
-        kindTerm: pl.kind === 'term',
-        screenOpen: pl.kind === 'term',
-        short: that.short
+        kind: kind,
+        shell: shell,
+        kindTerm: kind !== 'claude',
+        screenOpen: true,
+        // 空终端没有历史，直接把屏幕铺满
+        histOff: shell ? true : that.data.histOff
       })
       if (pl.prompt) that.onPrompt(pl.prompt)
-      if (pl.kind === 'term') {
-        // dsh / codex 这类没有 jsonl 的：不翻历史，直接看屏幕
+      if (shell) {
         that.setData({ msgs: [], hasMore: false })
-        return sbp.snapshot(that.sid, 60)
+        return sbp.snapshot(that.sid, 120)
       }
       return that.loadLatest()
     }).then(function (pl) {
@@ -123,12 +167,14 @@ Page({
         msgs: items,
         hasMore: !!pl.has_more,
         nextBefore: pl.next_before,
-        scrollTop: 999990
+        scrollTop: 999990,
+        // 没有落盘历史（dsh / codex）：历史块收起，屏幕吃满
+        histOff: items.length ? that.data.histOff : true
       })
     }).catch(function (e) {
-      if (e && e.code === 'E_NO_SESSION') {
-        that.setData({ kindTerm: true, msgs: [], hasMore: false, screenOpen: true })
-        return sbp.snapshot(that.sid, 60)
+      if (e && (e.code === 'E_NO_SESSION' || e.code === 'E_HTTP')) {
+        that.setData({ histOff: true, screenOpen: true, msgs: [], hasMore: false })
+        return sbp.snapshot(that.sid, 120)
       }
       throw e
     })
@@ -153,6 +199,13 @@ Page({
       msgs: this.data.msgs.concat([this.fmt(m)]),
       scrollTop: 999990 + this._tick
     })
+  },
+
+  // ------------------------------------------------------------ 历史折叠
+  toggleHist: function () {
+    var off = !this.data.histOff
+    this.setData({ histOff: off })
+    try { wx.setStorageSync('sbp_hist_off:' + this.sid, off) } catch (e) {}
   },
 
   // ------------------------------------------------------------ 上滑翻页
@@ -262,9 +315,25 @@ Page({
     })
   },
 
+  /** 空终端里点一下就把 agent 敲起来 */
+  quickCmd: function (e) {
+    var cmd = e.currentTarget.dataset.cmd
+    var that = this
+    wx.showLoading({ title: '正在启动…', mask: true })
+    sbp.input(this.sid, cmd).then(function () {
+      wx.hideLoading()
+      wx.showToast({ title: '已发送 ' + cmd, icon: 'none' })
+      setTimeout(function () { sbp.snapshot(that.sid, 120).then(function (pl) {
+        if (pl && pl.lines) that.setData({ screenText: (pl.lines || []).join('\n') })
+      }).catch(function () {}) }, 800)
+    }).catch(function (e) {
+      wx.hideLoading()
+      wx.showToast({ title: (e && e.msg) || '写入失败', icon: 'none' })
+    })
+  },
+
   sendKey: function (e) {
     var k = e.currentTarget.dataset.k
-    var that = this
     sbp.key(this.sid, k).catch(function (e) {
       wx.showToast({ title: (e && e.msg) || '按键失败', icon: 'none' })
     })
